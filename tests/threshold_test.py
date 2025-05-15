@@ -1,4 +1,4 @@
-# filepath: c:\Users\HP\OneDrive - Institut Teknologi Sepuluh Nopember\00 ITS\TA\Final-virtual-tryon-game (testing)\tests\threshold_test.py
+# filepath: c:\Users\farhat\Desktop\TA\test-hand-modul-TA\tests\threshold_test.py.updated
 """
 Threshold Adaptation Test for Hand Gesture Recognition
 Tests the effectiveness of threshold adaptation based on distance for hand gesture recognition
@@ -35,10 +35,12 @@ class ThresholdTest(BaseTest):
                 continue
 
             # Calculate remaining time
-            remaining = 5 - int(time.time() - start_time)
-
             # Process frame with hand tracker (just for display)
+            remaining = 5 - int(time.time() - start_time)
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
 
             # Display countdown on frame
             self.display_status(processed_frame, message,
@@ -78,10 +80,11 @@ class ThresholdTest(BaseTest):
         while True:
             ret, frame = cap.read()
             if not ret:
-                continue
-
-            # Process frame with hand tracker
+                continue            # Process frame with hand tracker
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
             frame_count += 1
 
             if test_phase == "distance_selection":
@@ -145,9 +148,12 @@ class ThresholdTest(BaseTest):
                     while time.time() - completion_start < 2:  # Show for 2 seconds
                         ret, frame = cap.read()
                         if not ret:
-                            continue
+                            continue 
                         processed_frame = self.hand_tracker.process_frame(
-                            frame)
+                                frame)
+                        # Add finger states visualization (skeleton and finger status)
+                        processed_frame = self.hand_tracker.visualize_finger_states(
+                            processed_frame)
                         self.display_status(
                             processed_frame, "Pengujian dengan threshold adaptif selesai!",
                             position=(30, 30), color=(0, 255, 0))

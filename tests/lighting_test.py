@@ -29,10 +29,12 @@ class LightingTest(BaseTest):
                 continue
 
             # Calculate remaining time
-            remaining = 5 - int(time.time() - start_time)
-
             # Process frame with hand tracker (just for display)
+            remaining = 5 - int(time.time() - start_time)
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
 
             # Display countdown on frame
             self.display_status(processed_frame, message,
@@ -73,10 +75,11 @@ class LightingTest(BaseTest):
             if not ret:
                 print("Error: Could not read frame from camera")
                 time.sleep(0.1)  # Add small delay to prevent CPU overload
-                continue
-
-            # Process frame with hand tracker
+                continue            # Process frame with hand tracker
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
             frame_count += 1
 
             # Estimate current frame brightness
@@ -168,11 +171,13 @@ class LightingTest(BaseTest):
                     while time.time() - completion_start < 2:  # Show for 2 seconds
                         ret, frame = cap.read()
                         if not ret:
-                            # Small delay to prevent CPU overload
-                            time.sleep(0.01)
+                            # Small delay to prevent CPU overload                            time.sleep(0.01)
                             continue
                         processed_frame = self.hand_tracker.process_frame(
                             frame)
+                        # Add finger states visualization (skeleton and finger status)
+                        processed_frame = self.hand_tracker.visualize_finger_states(
+                            processed_frame)
                         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                         brightness = np.mean(gray)
                         self.display_status(

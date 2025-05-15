@@ -31,6 +31,9 @@ class TemporalTest(BaseTest):
 
             # Process frame with hand tracker (just for display)
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
 
             # Display countdown on frame
             self.display_status(processed_frame, message,
@@ -43,8 +46,9 @@ class TemporalTest(BaseTest):
 
             # Break loop if ESC key is pressed
             if cv2.waitKey(1) == 27:  # ESC key
-                return False 
-            print("Mulai pengujian!")
+                return False
+
+        print("Mulai pengujian!")
         return True
 
     def run(self):
@@ -73,6 +77,9 @@ class TemporalTest(BaseTest):
 
             # Process frame with hand tracker
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
             frame_count += 1
 
             if test_phase == "mode_selection":
@@ -109,6 +116,8 @@ class TemporalTest(BaseTest):
                     start_test_time = time.time()
 
                     # Enable temporal filtering
+                    self.hand_tracker.toggle_features(
+                        use_temporal_filtering=True)
                     for gesture in self.hand_tracker.gesture_history:
                         self.hand_tracker.gesture_history[gesture] = deque(
                             maxlen=original_history_maxlen)
@@ -135,8 +144,7 @@ class TemporalTest(BaseTest):
                         self.display_status(
                             processed_frame, "Pengujian dengan pemfilteran selesai!",
                             position=(30, 30), color=(0, 255, 0))
-                        cv2.imshow("Temporal Filtering Test",
-                                   processed_frame)
+                        cv2.imshow("Temporal Filtering Test", processed_frame)
                         if cv2.waitKey(1) == 27:
                             break
                     continue
@@ -161,25 +169,45 @@ class TemporalTest(BaseTest):
 
                 # Get the detected raw gesture name
                 detected_raw_gesture = None
-                if pointing_raw:
+                if pointing_raw and selecting_raw:
+                    # If both are detected raw, prioritize the strongest signal
+                    pointing_confidence = self.hand_tracker._get_gesture_confidence(
+                        'pointing')
+                    selecting_confidence = self.hand_tracker._get_gesture_confidence(
+                        'selecting')
+                    if selecting_confidence > pointing_confidence:
+                        detected_raw_gesture = "selecting"
+                    else:
+                        detected_raw_gesture = "pointing"
+                elif pointing_raw:
                     detected_raw_gesture = "pointing"
                 elif selecting_raw:
                     detected_raw_gesture = "selecting"
 
                 # Get the detected filtered gesture name
                 detected_filtered_gesture = None
-                if pointing_filtered:
+                if pointing_filtered and selecting_filtered:
+                    # If both are detected after filtering, prioritize the strongest signal
+                    pointing_confidence = self.hand_tracker._get_gesture_confidence(
+                        'pointing')
+                    selecting_confidence = self.hand_tracker._get_gesture_confidence(
+                        'selecting')
+                    if selecting_confidence > pointing_confidence:
+                        detected_filtered_gesture = "selecting"
+                    else:
+                        detected_filtered_gesture = "pointing"
+                elif pointing_filtered:
                     detected_filtered_gesture = "pointing"
                 elif selecting_filtered:
                     detected_filtered_gesture = "selecting"
 
                 # Record results for every frame
                 results.append([
-                    elapsed_test_time,          # Time since test started
-                    self.current_mode,          # With or without filtering
-                    # Detected filtered gesture (or None)
-                    detected_filtered_gesture,
-                    "filtered" if detected_filtered_gesture != detected_raw_gesture else "raw"  # Detection type
+                    elapsed_test_time,                      # Time since test started
+                    self.current_mode,                      # With or without filtering
+                    # Use filtered gesture, fallback to raw if filtered is None
+                    detected_filtered_gesture or detected_raw_gesture,
+                    "filtered" if detected_filtered_gesture else "raw"  # Detection type
                 ])
 
                 # Display detection status
@@ -211,6 +239,8 @@ class TemporalTest(BaseTest):
                     start_test_time = time.time()
 
                     # Disable temporal filtering by setting history length to 1
+                    self.hand_tracker.toggle_features(
+                        use_temporal_filtering=False)
                     for gesture in self.hand_tracker.gesture_history:
                         self.hand_tracker.gesture_history[gesture] = deque(
                             maxlen=1)
@@ -237,8 +267,7 @@ class TemporalTest(BaseTest):
                         self.display_status(
                             processed_frame, "Pengujian tanpa pemfilteran selesai!",
                             position=(30, 30), color=(0, 255, 0))
-                        cv2.imshow("Temporal Filtering Test",
-                                   processed_frame)
+                        cv2.imshow("Temporal Filtering Test", processed_frame)
                         if cv2.waitKey(1) == 27:
                             break
                     continue
@@ -251,36 +280,37 @@ class TemporalTest(BaseTest):
                 self.display_status(
                     processed_frame, "Lakukan gerakan pointing dan selecting dengan cepat bergantian", position=(30, 110))
 
-                # Check for gestures (raw detection is the same as filtered without temporal filtering)
+                # Check for raw gestures - these will be the same as filtered without temporal filtering
+                # since history length is 1
                 pointing_raw = bool(
                     self.hand_tracker.gesture_history['pointing'][-1]) if self.hand_tracker.gesture_history['pointing'] else False
                 selecting_raw = bool(
                     self.hand_tracker.gesture_history['selecting'][-1]) if self.hand_tracker.gesture_history['selecting'] else False
 
-                # Filtered detection (should be the same as raw without temporal filtering)
-                pointing_filtered = self.hand_tracker.is_pointing()
-                selecting_filtered = self.hand_tracker.is_selecting()
-
                 # Get the detected raw gesture name
                 detected_raw_gesture = None
-                if pointing_raw:
+                if pointing_raw and selecting_raw:
+                    # If both are detected raw, prioritize the strongest signal
+                    pointing_confidence = self.hand_tracker._get_gesture_confidence(
+                        'pointing')
+                    selecting_confidence = self.hand_tracker._get_gesture_confidence(
+                        'selecting')
+                    if selecting_confidence > pointing_confidence:
+                        detected_raw_gesture = "selecting"
+                    else:
+                        detected_raw_gesture = "pointing"
+                elif pointing_raw:
                     detected_raw_gesture = "pointing"
                 elif selecting_raw:
                     detected_raw_gesture = "selecting"
-
-                # Get the detected filtered gesture name (should be same as raw)
-                detected_filtered_gesture = None
-                if pointing_filtered:
-                    detected_filtered_gesture = "pointing"
-                elif selecting_filtered:
-                    detected_filtered_gesture = "selecting"
 
                 # Record results for every frame
                 results.append([
                     elapsed_test_time,          # Time since test started
                     self.current_mode,          # With or without filtering
-                    detected_filtered_gesture,  # Detected gesture (or None)
-                    "raw"  # Detection type (always raw without filtering)
+                    detected_raw_gesture,       # Raw gesture detection
+                    # Detection type (always raw without filtering)
+                    "raw"
                 ])
 
                 # Display detection status
@@ -291,12 +321,11 @@ class TemporalTest(BaseTest):
                     self.display_status(processed_frame, "Deteksi Raw: Tidak",
                                         position=(30, 150), color=(255, 0, 0))
 
-                if detected_filtered_gesture:
-                    self.display_status(processed_frame, f"Deteksi Terfilter: {detected_filtered_gesture}",
-                                        position=(30, 190), color=(0, 255, 0))
-                else:
-                    self.display_status(processed_frame, "Deteksi Terfilter: Tidak",
-                                        position=(30, 190), color=(0, 255, 0))
+                # For consistency with filtered mode UI, also show filtered detection
+                # (which should be same as raw in this mode)
+                self.display_status(processed_frame,
+                                    f"Deteksi Terfilter: {detected_raw_gesture}" if detected_raw_gesture else "Deteksi Terfilter: Tidak",
+                                    position=(30, 190), color=(0, 255, 0))
 
                 # Allow ESC to exit during testing
                 if cv2.waitKey(1) == 27:  # ESC
@@ -310,6 +339,7 @@ class TemporalTest(BaseTest):
         cv2.destroyAllWindows()
 
         # Restore original history length
+        self.hand_tracker.toggle_features(use_temporal_filtering=True)
         for gesture in self.hand_tracker.gesture_history:
             self.hand_tracker.gesture_history[gesture] = deque(
                 maxlen=original_history_maxlen)

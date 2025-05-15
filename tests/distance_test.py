@@ -27,10 +27,12 @@ class DistanceTest(BaseTest):
                 continue
 
             # Calculate remaining time
-            remaining = 5 - int(time.time() - start_time)
-
             # Process frame with hand tracker (just for display)
+            remaining = 5 - int(time.time() - start_time)
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
 
             # Display countdown on frame
             self.display_status(processed_frame, message,
@@ -69,9 +71,11 @@ class DistanceTest(BaseTest):
             ret, frame = cap.read()
             if not ret:
                 continue
-                
-            # Process frame with hand tracker
+                # Process frame with hand tracker
             processed_frame = self.hand_tracker.process_frame(frame)
+            # Add finger states visualization (skeleton and finger status)
+            processed_frame = self.hand_tracker.visualize_finger_states(
+                processed_frame)
             frame_count += 1
 
             if test_phase == "setup":
@@ -141,7 +145,7 @@ class DistanceTest(BaseTest):
                 else:
                     # ESC pressed during countdown
                     break
-                    
+
             elif test_phase == "testing":
                 # Check time limit for this test
                 elapsed_test_time = time.time() - start_test_time
@@ -156,7 +160,8 @@ class DistanceTest(BaseTest):
                         ret, frame = cap.read()
                         if not ret:
                             continue
-                        processed_frame = self.hand_tracker.process_frame(frame)
+                        processed_frame = self.hand_tracker.process_frame(
+                            frame)
                         self.display_status(
                             processed_frame, f"Pengujian {current_gesture} pada jarak {current_distance} selesai!",
                             position=(30, 30), color=(0, 255, 0))
@@ -182,7 +187,7 @@ class DistanceTest(BaseTest):
                     is_detected = self.hand_tracker.is_pointing()
                 elif current_gesture == "selecting":
                     is_detected = self.hand_tracker.is_selecting()
-                
+
                 # Record results for every frame (detected or not)
                 results.append([
                     elapsed_test_time,       # Time since test started
@@ -206,7 +211,7 @@ class DistanceTest(BaseTest):
 
             # Show frame
             cv2.imshow("Distance Test", processed_frame)
-            
+
         # Clean up
         cap.release()
         cv2.destroyAllWindows()

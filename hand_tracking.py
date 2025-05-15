@@ -12,7 +12,7 @@ from collections import deque
 
 
 class HandTracker:
-    def __init__(self):
+    def __init__(self, use_threshold_adaptation=True, use_temporal_filtering=True):
         # Initialize MediaPipe hands with optimized parameters
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
@@ -29,6 +29,10 @@ class HandTracker:
         self.landmarks = None
         self.frame_height = 0
         self.frame_width = 0
+
+        # Flags for enabling/disabling features (for testing)
+        self.use_threshold_adaptation = use_threshold_adaptation
+        self.use_temporal_filtering = use_temporal_filtering
 
         # Hand distance estimation
         # Relative z-coordinate of the hand (depth)        # Finger angle thresholds (in degrees)
@@ -225,7 +229,11 @@ class HandTracker:
         if not angles:
             return False
 
-        adjusted_threshold = self.extension_threshold * threshold_modifier
+        # Apply threshold_modifier only if threshold adaptation is enabled
+        if self.use_threshold_adaptation:
+            adjusted_threshold = self.extension_threshold * threshold_modifier
+        else:
+            adjusted_threshold = self.extension_threshold
 
         if finger_name == 'thumb':
             # Thumb is extended if both CMC and MCP joints are relatively straight
@@ -250,22 +258,30 @@ class HandTracker:
         Args:
             gesture_name: Name of the gesture ('pointing', 'selecting', etc.)
             detected: Boolean indicating if the gesture was detected in current frame
-        """
-        self.gesture_history[gesture_name].append(1 if detected else 0)
+      """
+        if self.use_temporal_filtering:
+            self.gesture_history[gesture_name].append(1 if detected else 0)
+        else:
+            # When temporal filtering is disabled, just store the latest value
+            if self.gesture_history[gesture_name]:
+                self.gesture_history[gesture_name].clear()
+            self.gesture_history[gesture_name].append(1 if detected else 0)
 
     def _get_gesture_confidence(self, gesture_name):
         """
-        Calculate confidence score for a gesture based on recent history
+          Calculate confidence score for a gesture based on recent history
 
-        Args:
-            gesture_name: Name of the gesture to check
+          Args:
+              gesture_name: Name of the gesture to check
 
-        Returns:
-            Confidence score between 0.0 and 1.0
-        """
+          Returns:
+              Confidence score between 0.0 and 1.0, or raw value if temporal filtering is disabled
+          """
+        if not self.use_temporal_filtering:
+            # Return 1.0 if detected in current frame, 0.0 otherwise
+            return float(self.gesture_history[gesture_name][-1]) if self.gesture_history[gesture_name] else 0.0
         if not self.gesture_history[gesture_name]:
             return 0.0
-
         # Calculate weighted average (more recent detections have higher weight)
         weights = np.linspace(0.5, 1.0, len(
             self.gesture_history[gesture_name]))
@@ -273,7 +289,6 @@ class HandTracker:
             self.gesture_history[gesture_name],
             weights=weights
         )
-
         return confidence
 
     def is_pointing(self):
@@ -290,24 +305,17 @@ class HandTracker:
 
         # Adapt threshold based on hand distance (z-coordinate)
         # When hand is further away, be more lenient with angle requirements
-        distance_factor = min(1.0, max(0.7, 1.0 - self.hand_z * 2))
+        distance_factor = min(
+            1.0, max(0.7, 1.0 - self.hand_z * 2)) if self.use_threshold_adaptation else 1.0
         # Check finger states using angle-based detection
-        adjusted_threshold = self.extension_threshold * distance_factor
-        thumb_extended = self.is_finger_extended(
-            'thumb', threshold_modifier=distance_factor)
+
         index_extended = self.is_finger_extended(
             'index', threshold_modifier=distance_factor)
-        middle_extended = self.is_finger_extended(
-            'middle', threshold_modifier=distance_factor)
-        ring_extended = self.is_finger_extended(
-            'ring', threshold_modifier=distance_factor)
-        pinky_extended = self.is_finger_extended(
-            'pinky', threshold_modifier=distance_factor)
 
         # Raw detection result - only check that index is extended and other fingers except thumb are closed
         # Thumb can be in any position (more lenient approach)
         # Update history
-        detected = index_extended and not middle_extended and not ring_extended and not pinky_extended
+        detected = index_extended
         self._update_gesture_history('pointing', detected)
 
         # Return true if confidence exceeds threshold (using the adjustable gesture_threshold)
@@ -326,7 +334,8 @@ class HandTracker:
             return False
 
         # Adapt threshold based on hand distance (z-coordinate)
-        distance_factor = min(1.0, max(0.7, 1.0 - self.hand_z * 2))
+        distance_factor = min(
+            1.0, max(0.7, 1.0 - self.hand_z * 2)) if self.use_threshold_adaptation else 1.0
 
         # Check finger states using angle-based detection with distance adaptation
         index_extended = self.is_finger_extended(
@@ -340,11 +349,11 @@ class HandTracker:
 
         # Raw detection result
         # Update history
-        detected = index_extended and pinky_extended and not middle_extended and not ring_extended
+        detected = index_extended and pinky_extended 
         self._update_gesture_history('selecting', detected)
 
         # Return true if confidence exceeds threshold (using a slightly higher value than gesture_threshold)
-        return self._get_gesture_confidence('selecting') > (self.gesture_threshold + 0.15)
+        return self._get_gesture_confidence('selecting') > (self.gesture_threshold )
 
     def is_grabbing(self):
         """
@@ -359,7 +368,8 @@ class HandTracker:
             return False
 
         # Adapt threshold based on hand distance (z-coordinate)
-        distance_factor = min(1.0, max(0.7, 1.0 - self.hand_z * 2))
+        distance_factor = min(
+            1.0, max(0.7, 1.0 - self.hand_z * 2)) if self.use_threshold_adaptation else 1.0
 
         # Check if all fingers are flexed using distance-adapted thresholds
         thumb_extended = self.is_finger_extended(
@@ -397,7 +407,8 @@ class HandTracker:
             return False
 
         # Adapt threshold based on hand distance (z-coordinate)
-        distance_factor = min(1.0, max(0.7, 1.0 - self.hand_z * 2))
+        distance_factor = min(
+            1.0, max(0.7, 1.0 - self.hand_z * 2)) if self.use_threshold_adaptation else 1.0
 
         # Check if all fingers are extended using distance-adapted thresholds
         thumb_extended = self.is_finger_extended(
@@ -465,7 +476,9 @@ class HandTracker:
                 self.mp_drawing.DrawingSpec(
                     color=(0, 255, 0), thickness=2, circle_radius=4),
                 self.mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2)
-            )        # Add finger state indicators
+            )
+
+        # Add finger state indicators
         y_pos = 30
         for finger, is_extended in finger_states.items():
             color = (0, 255, 0) if is_extended else (
@@ -487,5 +500,34 @@ class HandTracker:
 
         cv2.putText(frame, f"Gesture: {gesture}", (10, y_pos),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        y_pos += 30
+
+        # Display feature status (for testing purposes)
+        adapt_status = "ON" if self.use_threshold_adaptation else "OFF"
+        filter_status = "ON" if self.use_temporal_filtering else "OFF"
+        cv2.putText(frame, f"Threshold Adaptation: {adapt_status}", (10, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        y_pos += 30
+        cv2.putText(frame, f"Temporal Filtering: {filter_status}", (10, y_pos),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
         return frame
+
+    def toggle_features(self, use_threshold_adaptation=None, use_temporal_filtering=None):
+        """
+        Toggle the threshold adaptation and temporal filtering features on or off
+
+        Args:
+            use_threshold_adaptation: Boolean to enable/disable threshold adaptation, or None to leave unchanged
+            use_temporal_filtering: Boolean to enable/disable temporal filtering, or None to leave unchanged
+        """
+        if use_threshold_adaptation is not None:
+            self.use_threshold_adaptation = use_threshold_adaptation
+
+        if use_temporal_filtering is not None:
+            self.use_temporal_filtering = use_temporal_filtering
+
+        # Clear gesture history when turning off temporal filtering
+        if use_temporal_filtering is False:
+            for gesture_name in self.gesture_history:
+                self.gesture_history[gesture_name].clear()
