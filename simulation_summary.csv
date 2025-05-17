@@ -1,0 +1,2 @@
+Scenario,Noise_Probability,Gesture_Change_Probability,Raw_Accuracy,Filtered_Accuracy,Improvement
+1,0.5,0.05,50.17%,46.50%,-3.67%

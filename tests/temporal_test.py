@@ -53,11 +53,14 @@ class TemporalTest(BaseTest):
 
     def run(self):
         """Run the temporal filtering test"""
-        # Open camera
-        cap = cv2.VideoCapture(self.camera)
-        if not cap.isOpened():
-            print(f"Error: Could not open camera {self.camera}")
-            return
+        # # Open camera
+        # cap = cv2.VideoCapture(self.camera)
+        # if not cap.isOpened():
+        #     print(f"Error: Could not open camera {self.camera}")
+        #     return
+
+        # get from video gesture test.mkv
+        cap = cv2.VideoCapture("gesture test.mkv")
 
         results = []
         overall_start_time = time.time()
